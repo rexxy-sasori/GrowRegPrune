@@ -1,0 +1,20 @@
+[Sun, 16 Jan 2022 11:33:53] INFO [main.py.main_worker:50] Start regularization pruning
+[Sun, 16 Jan 2022 11:33:53] INFO [pruner.py._register_layers:133] Looking for layers to prune
+[Sun, 16 Jan 2022 11:33:53] INFO [pruner.py._register_layers:157] Register layer name: features.0, shape: torch.Size([64, 3, 3, 3]) using pr ratio 0 block dims: (4, 1) PrWeightNorm/KpWeightNorm=0.0
+[Sun, 16 Jan 2022 11:33:53] INFO [pruner.py._register_layers:157] Register layer name: features.3, shape: torch.Size([64, 64, 3, 3]) using pr ratio 0.9 block dims: (4, 1) PrWeightNorm/KpWeightNorm=0.6920785903930664
+[Sun, 16 Jan 2022 11:33:53] INFO [pruner.py._register_layers:157] Register layer name: features.7, shape: torch.Size([128, 64, 3, 3]) using pr ratio 0.9 block dims: (4, 1) PrWeightNorm/KpWeightNorm=2.0246269702911377
+[Sun, 16 Jan 2022 11:33:53] INFO [pruner.py._register_layers:157] Register layer name: features.10, shape: torch.Size([128, 128, 3, 3]) using pr ratio 0.9 block dims: (4, 1) PrWeightNorm/KpWeightNorm=2.451253652572632
+[Sun, 16 Jan 2022 11:33:53] INFO [pruner.py._register_layers:157] Register layer name: features.14, shape: torch.Size([256, 128, 3, 3]) using pr ratio 0.9 block dims: (8, 1) PrWeightNorm/KpWeightNorm=3.334879159927368
+[Sun, 16 Jan 2022 11:33:53] INFO [pruner.py._register_layers:157] Register layer name: features.17, shape: torch.Size([256, 256, 3, 3]) using pr ratio 0.9 block dims: (2, 1) PrWeightNorm/KpWeightNorm=1.7554025650024414
+[Sun, 16 Jan 2022 11:33:53] INFO [pruner.py._register_layers:157] Register layer name: features.20, shape: torch.Size([256, 256, 3, 3]) using pr ratio 0.9 block dims: (4, 1) PrWeightNorm/KpWeightNorm=2.329737901687622
+[Sun, 16 Jan 2022 11:33:53] INFO [pruner.py._register_layers:157] Register layer name: features.23, shape: torch.Size([256, 256, 3, 3]) using pr ratio 0.9 block dims: (4, 1) PrWeightNorm/KpWeightNorm=2.163562059402466
+[Sun, 16 Jan 2022 11:33:53] INFO [pruner.py._register_layers:157] Register layer name: features.27, shape: torch.Size([512, 256, 3, 3]) using pr ratio 0.9 block dims: (8, 1) PrWeightNorm/KpWeightNorm=2.3285512924194336
+[Sun, 16 Jan 2022 11:33:53] INFO [pruner.py._register_layers:157] Register layer name: features.30, shape: torch.Size([512, 512, 3, 3]) using pr ratio 0.9 block dims: (4, 1) PrWeightNorm/KpWeightNorm=1.4431759119033813
+[Sun, 16 Jan 2022 11:33:53] INFO [pruner.py._register_layers:157] Register layer name: features.33, shape: torch.Size([512, 512, 3, 3]) using pr ratio 0.9 block dims: (4, 1) PrWeightNorm/KpWeightNorm=1.2445844411849976
+[Sun, 16 Jan 2022 11:33:53] INFO [pruner.py._register_layers:157] Register layer name: features.36, shape: torch.Size([512, 512, 3, 3]) using pr ratio 0.9 block dims: (4, 1) PrWeightNorm/KpWeightNorm=1.078161597251892
+[Sun, 16 Jan 2022 11:33:54] INFO [pruner.py._register_layers:157] Register layer name: features.40, shape: torch.Size([512, 512, 3, 3]) using pr ratio 0.9 block dims: (8, 1) PrWeightNorm/KpWeightNorm=1.1095753908157349
+[Sun, 16 Jan 2022 11:33:54] INFO [pruner.py._register_layers:157] Register layer name: features.43, shape: torch.Size([512, 512, 3, 3]) using pr ratio 0.9 block dims: (2, 1) PrWeightNorm/KpWeightNorm=0.5133537650108337
+[Sun, 16 Jan 2022 11:33:54] INFO [pruner.py._register_layers:157] Register layer name: features.46, shape: torch.Size([512, 512, 3, 3]) using pr ratio 0.9 block dims: (16, 1) PrWeightNorm/KpWeightNorm=1.092359185218811
+[Sun, 16 Jan 2022 11:33:54] INFO [pruner.py._register_layers:157] Register layer name: features.49, shape: torch.Size([512, 512, 3, 3]) using pr ratio 0.9 block dims: (1, 1) PrWeightNorm/KpWeightNorm=0.16380074620246887
+[Sun, 16 Jan 2022 11:33:54] INFO [pruner.py._register_layers:157] Register layer name: classifier, shape: torch.Size([10, 512]) using pr ratio 0 block dims: (1, 1) PrWeightNorm/KpWeightNorm=0.0
+[Sun, 16 Jan 2022 11:33:54] INFO [pruner.py._register_layers:168] Expected model sparsity: 0.8996922093487814
