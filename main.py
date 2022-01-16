@@ -67,7 +67,7 @@ def main_worker(
         save_interval=10
     )
 
-    #sparse_model = pruner.prune()
+    sparse_model = pruner.prune()
 
 
 if __name__ == '__main__':
