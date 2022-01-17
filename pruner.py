@@ -177,14 +177,19 @@ class GRegPrunerI:
             for batch_idx, (inputs, targets) in enumerate(self.trainloader):
                 inputs, targets = inputs.to(self.device), targets.to(self.device)
                 self.model.train()
+
+                self.logger.info(f"Propagating Inputs @ Iter = {num_iter}")
                 y_ = self.model(inputs)
 
                 if num_iter % self.update_reg_interval == 0:
                     self.update_reg()
 
+                self.logger.info(f"Backprop @ Iter = {num_iter}")
                 loss = self.criterion(y_, targets)
                 self.optimizer.zero_grad()
                 loss.backward()
+
+                self.logger.info(f"Update Reg and Perform Gradient Descent @ Iter = {num_iter}")
                 self.apply_reg()
                 self.optimizer.step()
 
