@@ -1,8 +1,9 @@
 import argparse
 import os
+from datetime import datetime
 
 import torch
-from datetime import datetime
+
 import dataset
 from logger import get_logger
 from pruner import GRegPrunerI
