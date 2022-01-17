@@ -26,9 +26,28 @@ data_block_extra = parse_data(len(sps), num_layers, 'block_extra_factor')
 plt.figure()
 plt.plot(remain_percentage, data_unstructured.max(1), label='unstructured', marker='o')
 plt.plot(remain_percentage, data_block.max(1), label='block',  marker='o')
-plt.plot(remain_percentage, data_block_extra.max(1), label='block with addition 100 factor', marker='o')
 plt.legend()
 plt.grid()
 plt.xlabel('Remained Weight Percentage (%)')
 plt.ylabel('Max PrWeightNorm/KpWeightNorm')
+plt.show()
+
+
+plt.figure()
+for spidx, sp in enumerate(sps):
+    plt.plot(np.arange(num_layers), data_unstructured[spidx], marker='o', label=f"Sparsity: {sp}")
+plt.grid()
+plt.ylabel('PrWeightNorm/KpWeightNorm')
+plt.xlabel('Layer Idx')
+plt.legend(ncol=2)
+plt.show()
+
+
+plt.figure()
+for spidx, sp in enumerate(sps):
+    plt.plot(np.arange(num_layers), data_block[spidx], marker='o', label=f"Sparsity: {sp}")
+plt.grid()
+plt.ylabel('PrWeightNorm/KpWeightNorm')
+plt.xlabel('Layer Idx')
+plt.legend(ncol=2)
 plt.show()

@@ -1,7 +1,8 @@
+import argparse
 import os
 
 import torch
-
+from datetime import datetime
 import dataset
 from logger import get_logger
 from pruner import GRegPrunerI
@@ -24,9 +25,11 @@ def main_worker(
         num_worker,
         pretrained_model_path,
         block_candidate_path,
-        clear_prev_log
+        clear_prev_log,
+        block_size_mode,
+        log_directory,
+        reg_mode
 ):
-    log_directory = 'greg1_pruning_logs'
     if not os.path.exists(log_directory):
         os.makedirs(log_directory)
 
@@ -48,7 +51,12 @@ def main_worker(
     )
 
     logger.info(f"Start regularization pruning")
-    pruner = GRegPrunerI(
+    if reg_mode == 1:
+        reg_class = GRegPrunerI
+    else:
+        raise NotImplementedError
+
+    pruner = reg_class(
         model=model,
         device=device,
         trainloader=trainloader,
@@ -60,23 +68,36 @@ def main_worker(
         pr_ratio=0.9,
         reg_ceiling=1,
         update_reg_interval=10,
-        stablize_interval=1,
         epsilon_lambda=0.0001,
         logger=logger,
         log_directory=log_directory,
-        save_interval=10
+        save_interval=10,
+        block_size_mode=block_size_mode
     )
 
     sparse_model = pruner.prune()
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--block-size-mode", type=str, required=True, help='choice={min, max, unstructured}')
+    parser.add_argument("--reg-mode", type=int, required=True, help='choice={1,2}')
+    args = parser.parse_args()
+    block_size_mode = args.block_size_mode
+    reg_mode = args.reg_mode
+
     block_candidate_path = 'valid_block_search_space/cifar_vgg19bn_sparsednn_tau_acc_20_tau_lat_1.5.pt'
     pretrained_model_path = 'model_checkpoint.pth'
+
+    log_directory = f'Experiments/greg{reg_mode}_pruning_logs_{datetime.now().strftime("%m%d%Y_%H%M%S")}'
+
     main_worker(
         batch_size=256,
-        num_worker=8,
+        num_worker=14,
         pretrained_model_path=pretrained_model_path,
         block_candidate_path=block_candidate_path,
-        clear_prev_log=True
+        clear_prev_log=True,
+        block_size_mode=block_size_mode,
+        log_directory=log_directory,
+        reg_mode=reg_mode
     )

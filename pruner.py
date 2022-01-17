@@ -83,7 +83,6 @@ class GRegPrunerI:
             # regI parameter
             reg_ceiling,
             update_reg_interval,
-            stablize_interval,
             epsilon_lambda,
 
             logger,
@@ -93,7 +92,9 @@ class GRegPrunerI:
 
             # bookkeeping
             log_directory='./greg1_pruning_logs',
-            save_interval=1
+            save_interval=1,
+
+            block_size_mode='min'
     ):
         self.logger = logger
 
@@ -117,7 +118,6 @@ class GRegPrunerI:
 
         self.reg_ceiling = reg_ceiling
         self.update_reg_interval = update_reg_interval
-        self.stablize_interval = stablize_interval
         self.epsilon_lambda = epsilon_lambda
 
         self.valid_block_dims = torch.load(valid_block_pruning_path)
@@ -129,7 +129,9 @@ class GRegPrunerI:
         self.log_directory = log_directory
         self.save_interval = save_interval
 
-    def _register_layers(self):
+        self.block_size_mode = block_size_mode
+
+    def _register_layers(self) -> (dict, float):
         self.logger.info(f"Looking for layers to prune")
         target_layers = {}
         expected_model_sparsity = 0
@@ -142,8 +144,19 @@ class GRegPrunerI:
 
             block_dims_candidate = self.valid_block_dims[name]
             block_sizes = np.array([v[0] * v[1] for v in block_dims_candidate if v != (1, 1)])
-            block_dimension = block_dims_candidate[np.argmin(block_sizes)] if len(block_sizes) >= 1 else (1, 1)
-            # block_dimension = (1,1)
+
+            if self.block_size_mode == 'min':
+                self.logger.info("Select a non-unstructured candidate with the smallest block size")
+                block_dimension = block_dims_candidate[np.argmin(block_sizes)] if len(block_sizes) >= 1 else (1, 1)
+            elif self.block_size_mode == 'max':
+                self.logger.info("Select a non-unstructured candidate with the largest block size")
+                block_dimension = block_dims_candidate[np.argmax(block_sizes)] if len(block_sizes) >= 1 else (1, 1)
+            elif self.block_size_mode == 'unstructured':
+                self.logger.info("Set block dimension to be 1x1")
+                block_dimension = (1, 1)
+            else:
+                raise NotImplementedError
+
             if count == 0 or name == 'classifier':
                 pr_ratio = 0
             else:
@@ -168,7 +181,7 @@ class GRegPrunerI:
         self.logger.info(f"Expected model sparsity: {expected_model_sparsity}")
         return target_layers, expected_model_sparsity
 
-    def prune(self):
+    def prune(self) -> nn.Module:
         self.model = self.model.train()
         num_iter = 0
         train_acc, train_loss, test_acc, test_loss = 0, 0, 0, 0
@@ -182,6 +195,7 @@ class GRegPrunerI:
                 y_ = self.model(inputs)
 
                 if num_iter % self.update_reg_interval == 0:
+                    self.logger.info(f"Update Reg Term @ Iter = {num_iter}")
                     self.update_reg()
 
                 self.logger.info(f"Backprop @ Iter = {num_iter}")
@@ -189,7 +203,7 @@ class GRegPrunerI:
                 self.optimizer.zero_grad()
                 loss.backward()
 
-                self.logger.info(f"Update Reg and Perform Gradient Descent @ Iter = {num_iter}")
+                self.logger.info(f"Apply Reg and Perform Gradient Descent @ Iter = {num_iter}")
                 self.apply_reg()
                 self.optimizer.step()
 
