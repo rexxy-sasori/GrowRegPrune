@@ -115,21 +115,17 @@ class GRegPrunerI:
         )
 
         self.criterion = criterion
-
         self.reg_ceiling = reg_ceiling
         self.update_reg_interval = update_reg_interval
         self.epsilon_lambda = epsilon_lambda
-
         self.valid_block_dims = torch.load(valid_block_pruning_path)
         self.pr_ratio = pr_ratio
-
+        self.block_size_mode = block_size_mode
         self.pr_over_kp_weight_norm_history = []
-        self.target_layers, self.target_model_sparsity = self._register_layers()
-
         self.log_directory = log_directory
         self.save_interval = save_interval
 
-        self.block_size_mode = block_size_mode
+        self.target_layers, self.target_model_sparsity = self._register_layers()
 
     def _register_layers(self) -> (dict, float):
         self.logger.info(f"Looking for layers to prune")
@@ -207,13 +203,6 @@ class GRegPrunerI:
                 self.apply_reg()
                 self.optimizer.step()
 
-                train_acc, train_loss = accuracy_evaluator.eval(
-                    self.model, self.device, self.trainloader, self.criterion, print_acc=False
-                )
-
-                self.logger.info("TRAIN Acc1 = %.4f, Iter = %d @ Batch [%d]/[%d]" % (
-                    train_acc, num_iter, batch_idx + 1, len(self.trainloader)))
-
                 pr_over_kp_weight_norm = {}
                 self.logger.info(f"Evaluating PrWeightNorm/KpWeightNorm @ Iter = {num_iter}")
                 for name, layer_args in self.target_layers.items():
@@ -225,6 +214,13 @@ class GRegPrunerI:
                 self.pr_over_kp_weight_norm_history.append(pr_over_kp_weight_norm)
 
                 if num_iter % self.save_interval == 0:
+                    train_acc, train_loss = accuracy_evaluator.eval(
+                        self.model, self.device, self.trainloader, self.criterion, print_acc=False
+                    )
+
+                    self.logger.info("TRAIN Acc1 = %.4f, Iter = %d @ Batch [%d]/[%d]" % (
+                        train_acc, num_iter, batch_idx + 1, len(self.trainloader)))
+
                     test_acc, test_loss = accuracy_evaluator.eval(
                         self.model, self.device, self.testloader, self.criterion, print_acc=False
                     )

@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
-p = 'greg1_pruning_logs/log_batch256.txt'
+p = 'greg1_pruning_logs/log_bs64.txt'
 
 layer_names = [
     'features.0',
@@ -63,8 +63,8 @@ plt.figure()
 for idx, layer_name in enumerate(layer_names):
     plt.plot(pr_over_kp[idx::len(layer_names)], label=layer_name)
 
-plt.ylim([0, 0.1])
-#plt.legend(ncol=3)
+#plt.ylim([0, 0.1])
+plt.legend(ncol=3)
 plt.grid()
 plt.xlabel('Gradient Update Epoch')
 plt.ylabel('PrOverKp @ 90%')
