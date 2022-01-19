@@ -72,7 +72,7 @@ class GRegIIArgs(GRegIArgs):
             self.kp_mask = 1 - self.pr_mask
 
         self.reg += self.pr_mask * epsilon_lambda * torch.ones_like(self.reg)
-        self.reg += self.kp_mask * (-self.weight_decay) * torch.ones_like(self.reg)
+        self.reg += self.kp_mask * (-self.weight_decay) * torch.ones_like(self.reg) #todo finish updating function
 
 
 class GRegPrunerI:
