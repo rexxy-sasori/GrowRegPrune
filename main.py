@@ -29,7 +29,10 @@ def main_worker(
         clear_prev_log,
         block_size_mode,
         log_directory,
-        reg_mode
+        reg_mode,
+        init_pr_over_kp_threshold,
+        init_model_sparsity,
+        layer_sparsity_delta
 ):
     if not os.path.exists(log_directory):
         os.makedirs(log_directory)
@@ -72,10 +75,14 @@ def main_worker(
         epsilon_lambda=0.0001,
         logger=logger,
         log_directory=log_directory,
-        save_interval=10,
-        block_size_mode=block_size_mode
+        save_interval=9999,
+        block_size_mode=block_size_mode,
+        init_pr_over_kp_threshold=init_pr_over_kp_threshold,
+        init_model_sparsity=init_model_sparsity,
+        layer_sparsity_delta=layer_sparsity_delta
     )
 
+    #os.system(f"echo {init_model_sparsity} {pruner.target_model_sparsity} {init_pr_over_kp_threshold} >> sparsity.txt")
     sparse_model = pruner.prune()
 
 
@@ -100,5 +107,8 @@ if __name__ == '__main__':
         clear_prev_log=True,
         block_size_mode=block_size_mode,
         log_directory=log_directory,
-        reg_mode=reg_mode
+        reg_mode=reg_mode,
+        init_pr_over_kp_threshold=2,
+        init_model_sparsity=0.95,
+        layer_sparsity_delta=0.0001
     )

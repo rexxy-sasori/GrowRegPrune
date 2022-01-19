@@ -8,7 +8,7 @@ from nnutils.training_pipeline import accuracy_evaluator
 from torch import nn
 
 
-class PruningArgs:
+class GRegIArgs:
     def __init__(
             self,
             layer: nn.Module,
@@ -21,7 +21,7 @@ class PruningArgs:
         self.pr_ratio = pr_ratio
         self.is_conv = isinstance(layer, nn.Conv2d)
 
-        self.pr_mask = self._find_target_masks()
+        self.pr_mask = self._find_init_pruning_masks()
         self.kp_mask = 1 - self.pr_mask
         self.reg = torch.zeros_like(layer.weight.data)
 
@@ -29,13 +29,10 @@ class PruningArgs:
         self.kp_mask = self.kp_mask.to(device)
         self.reg = self.reg.to(device)
 
-    def _find_target_masks(self):
+    def _find_init_pruning_masks(self) -> torch.Tensor:
         weight_tensor = self.layer.weight.data
-
-        if self.is_conv:
-            return 1 - mask_conv_layer(weight_tensor, self.block_dimension, self.pr_ratio)
-        else:
-            return 1 - mask_linear_layer(weight_tensor, self.block_dimension, self.pr_ratio)
+        pr_mask = 1 - MASK_FUNC_MAP[self.is_conv](weight_tensor, self.block_dimension, self.pr_ratio)
+        return pr_mask
 
     def update_reg_single_layer(self, epsilon_lambda):
         self.reg += self.pr_mask * epsilon_lambda * torch.ones_like(self.reg)
@@ -44,20 +41,38 @@ class PruningArgs:
         l2_grad = self.reg * self.layer.weight
         self.layer.weight.grad += l2_grad
 
-    def get_kp_weight_norm(self):
+    def get_kp_weight_norm(self) -> float:
         if self.pr_ratio == 0:
             return torch.norm(self.layer.weight.data) ** 2
         else:
             return torch.norm(self.kp_mask * self.layer.weight.data) ** 2
 
-    def get_pr_weight_norm(self):
+    def get_pr_weight_norm(self) -> float:
         if self.pr_ratio == 0:
             return 0
         else:
             return torch.norm(self.pr_mask * self.layer.weight.data) ** 2
 
-    def finished_updating_reg_single_layer(self, reg_upper_limit):
+    def finished_updating_reg_single_layer(self, reg_upper_limit) -> bool:
         return self.reg.max() > reg_upper_limit
+
+
+class GRegIIArgs(GRegIArgs):
+    def __init__(self, picking_ceiling, weight_decay, *args, **kwargs):
+        super(GRegIIArgs, self).__init__(*args, **kwargs)
+        self.weight_decay = weight_decay
+        self.picking_ceiling = picking_ceiling
+
+    def _find_init_pruning_masks(self) -> torch.Tensor:
+        return torch.ones_like(self.layer.weight.data)
+
+    def update_reg_single_layer(self, epsilon_lambda):
+        if torch.sum(self.kp_mask) == 0 and (self.pr_mask * self.reg).max() > self.picking_ceiling:
+            self.pr_mask = MASK_FUNC_MAP[self.is_conv](self.layer.weight.data, self.block_dimension, self.pr_ratio)
+            self.kp_mask = 1 - self.pr_mask
+
+        self.reg += self.pr_mask * epsilon_lambda * torch.ones_like(self.reg)
+        self.reg += self.kp_mask * (-self.weight_decay) * torch.ones_like(self.reg)
 
 
 class GRegPrunerI:
@@ -94,7 +109,11 @@ class GRegPrunerI:
             log_directory='./greg1_pruning_logs',
             save_interval=1,
 
-            block_size_mode='min'
+            block_size_mode='min',
+
+            init_pr_over_kp_threshold=1,
+            init_model_sparsity=0.5,
+            layer_sparsity_delta=0.1
     ):
         self.logger = logger
 
@@ -114,6 +133,8 @@ class GRegPrunerI:
             weight_decay=weight_decay
         )
 
+        self.weight_decay = weight_decay
+
         self.criterion = criterion
         self.reg_ceiling = reg_ceiling
         self.update_reg_interval = update_reg_interval
@@ -125,7 +146,44 @@ class GRegPrunerI:
         self.log_directory = log_directory
         self.save_interval = save_interval
 
+        self.init_pr_over_kp_threshold = init_pr_over_kp_threshold
+        self.init_model_sparsity = init_model_sparsity
+        self.layer_sparsity_delta = layer_sparsity_delta
+
         self.target_layers, self.target_model_sparsity = self._register_layers()
+
+    def _get_sparsity_ratio(self, name, module, layer_idx, block_dimension):
+        self.logger.info(f'getting sparsity ratio by waterfilling for {name}')
+        # if 1 > 2:
+        #     return 0
+        # else:
+        mask_func = MASK_FUNC_MAP[isinstance(module, nn.Conv2d)]
+        pr_ratio = self.init_model_sparsity
+        pr_mask = 1 - mask_func(module.weight.data, block_dimension, pr_ratio)
+        kp_mask = 1 - pr_mask
+        pr_weight_norm = torch.norm(pr_mask * module.weight.data) ** 2
+        kp_weight_norm = torch.norm(kp_mask * module.weight.data) ** 2
+        pr_over_kp = pr_weight_norm / kp_weight_norm
+
+        if pr_over_kp < self.init_pr_over_kp_threshold:
+            """
+            use the current sparsity level if the resultant pr_over_kp satisfies the threshold requirement 
+            """
+            return pr_ratio
+
+        """
+        Otherwise reduce the pr_ratio by 
+        """
+        while pr_over_kp > self.init_pr_over_kp_threshold:
+            self.logger.info(f'{name}: current sparsity: {pr_ratio}, current PrOverKp: {pr_over_kp}')
+            pr_ratio -= self.layer_sparsity_delta
+            pr_mask = 1 - mask_func(module.weight.data, block_dimension, pr_ratio)
+            kp_mask = 1 - pr_mask
+            pr_weight_norm = torch.norm(pr_mask * module.weight.data) ** 2
+            kp_weight_norm = torch.norm(kp_mask * module.weight.data) ** 2
+            pr_over_kp = pr_weight_norm / kp_weight_norm
+
+        return pr_ratio
 
     def _register_layers(self) -> (dict, float):
         self.logger.info(f"Looking for layers to prune")
@@ -134,10 +192,9 @@ class GRegPrunerI:
 
         count = 0
         pr_over_kp_weight_norm = {}
-        for idx, (name, module) in enumerate(self.model.named_modules()):
-            if not is_compute_layer(module):
-                continue
 
+        targets = {name: module for name, module in self.model.named_modules() if is_compute_layer(module)}
+        for layer_idx, (name, module) in enumerate(targets.items()):
             block_dims_candidate = self.valid_block_dims[name]
             block_sizes = np.array([v[0] * v[1] for v in block_dims_candidate if v != (1, 1)])
 
@@ -153,12 +210,14 @@ class GRegPrunerI:
             else:
                 raise NotImplementedError
 
-            if count == 0 or name == 'classifier':
-                pr_ratio = 0
-            else:
-                pr_ratio = self.pr_ratio
+            pr_ratio = self._get_sparsity_ratio(name, module, layer_idx, block_dimension)
 
-            target_layers[name] = PruningArgs(module, block_dimension, pr_ratio, self.device)
+            target_layers[name] = GRegIArgs(
+                layer=module,
+                block_dimension=block_dimension,
+                pr_ratio=pr_ratio,
+                device=self.device
+            )
 
             kp_weight = target_layers[name].get_kp_weight_norm()
             pr_weight = target_layers[name].get_pr_weight_norm()
@@ -272,6 +331,69 @@ class GRegPrunerI:
         return True
 
 
+class GRegPrunerII(GRegPrunerI):
+    def __init__(self, picking_ceiling, *args, **kwargs):
+        super(GRegPrunerII, self).__init__(*args, *kwargs)
+        self.picking_ceiling = picking_ceiling
+
+    def _register_layers(self) -> (dict, float):
+        self.logger.info(f"Looking for layers to prune")
+        target_layers = {}
+        expected_model_sparsity = 0
+
+        count = 0
+        pr_over_kp_weight_norm = {}
+        for idx, (name, module) in enumerate(self.model.named_modules()):
+            if not is_compute_layer(module):
+                continue
+
+            block_dims_candidate = self.valid_block_dims[name]
+            block_sizes = np.array([v[0] * v[1] for v in block_dims_candidate if v != (1, 1)])
+
+            if self.block_size_mode == 'min':
+                self.logger.info("Select a non-unstructured candidate with the smallest block size")
+                block_dimension = block_dims_candidate[np.argmin(block_sizes)] if len(block_sizes) >= 1 else (1, 1)
+            elif self.block_size_mode == 'max':
+                self.logger.info("Select a non-unstructured candidate with the largest block size")
+                block_dimension = block_dims_candidate[np.argmax(block_sizes)] if len(block_sizes) >= 1 else (1, 1)
+            elif self.block_size_mode == 'unstructured':
+                self.logger.info("Set block dimension to be 1x1")
+                block_dimension = (1, 1)
+            else:
+                raise NotImplementedError
+
+            if count == 0 or name == 'classifier':
+                pr_ratio = 0
+            else:
+                pr_ratio = self.pr_ratio
+
+            target_layers[name] = GRegIIArgs(
+                layer=module,
+                block_dimension=block_dimension,
+                pr_ratio=pr_ratio,
+                device=self.device,
+                picking_ceiling=self.picking_ceiling,
+                weight_decay=self.weight_decay
+            )
+
+            kp_weight = target_layers[name].get_kp_weight_norm()
+            pr_weight = target_layers[name].get_pr_weight_norm()
+            pr_over_kp = pr_weight / kp_weight
+            self.logger.info(f"Register layer name: {name}, "
+                             f"shape: {module.weight.data.shape} "
+                             f"using pr ratio {pr_ratio} "
+                             f"block dims: {block_dimension} "
+                             f"PrWeightNorm/KpWeightNorm={pr_over_kp}")
+            pr_over_kp_weight_norm[name] = pr_over_kp
+            count += 1
+            expected_model_sparsity += module.weight.data.numel() / self.total_param * pr_ratio
+
+        # torch.save(pr_over_kp_weight_norm, f'block_extra_factor/{self.pr_ratio}.pt')
+        self.pr_over_kp_weight_norm_history.append(pr_over_kp_weight_norm)
+        self.logger.info(f"Expected model sparsity: {expected_model_sparsity}")
+        return target_layers, expected_model_sparsity
+
+
 def is_compute_layer(module):
     return isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear)
 
@@ -311,3 +433,9 @@ def mask_conv_layer(weight, block_dims, alpha):
     unroll_weight = weight.reshape(cout, cin * hk * wk)
     unroll_mask = mask_linear_layer(unroll_weight, block_dims, alpha)
     return unroll_mask.reshape(cout, cin, hk, wk)
+
+
+MASK_FUNC_MAP = {
+    0: mask_linear_layer,
+    1: mask_conv_layer
+}
