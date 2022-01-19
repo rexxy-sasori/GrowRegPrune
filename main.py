@@ -83,7 +83,7 @@ def main_worker(
     )
 
     #os.system(f"echo {init_model_sparsity} {pruner.target_model_sparsity} {init_pr_over_kp_threshold} >> sparsity.txt")
-    sparse_model = pruner.prune()
+    pruner.prune()
 
 
 if __name__ == '__main__':

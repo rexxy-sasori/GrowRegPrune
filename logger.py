@@ -3,11 +3,11 @@ import os
 import sys
 
 
-def get_logger(log_directory, clear_prev_log):
+def get_logger(log_directory, clear_prev_log, logfile_name='my_log_info.log'):
     logger = logging.getLogger('')
     logger.setLevel(logging.DEBUG)
 
-    log_path = os.path.join(log_directory, 'my_log_info.log')
+    log_path = os.path.join(log_directory, logfile_name)
     if os.path.exists(log_path) and clear_prev_log:
         os.remove(log_path)
 
