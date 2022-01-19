@@ -9,7 +9,7 @@ from logger import get_logger
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--reg-log-dir', required=True)
-    parser.add_argument('--lr-ft', type=float, required=True)
+    parser.add_argument('--lr-ft', type=str, required=True)
     parser.add_argument('--num-epochs', type=int, required=True)
     args = parser.parse_args()
 
