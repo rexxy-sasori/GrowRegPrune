@@ -172,7 +172,7 @@ class GRegPrunerI:
             return pr_ratio
 
         """
-        Otherwise reduce the pr_ratio by 
+        Otherwise reduce the pr_ratio by sparsity_delta until pkr reaches given threshold
         """
         while pr_over_kp > self.init_pr_over_kp_threshold:
             self.logger.info(f'{name}: current sparsity: {pr_ratio}, current PrOverKp: {pr_over_kp}')
@@ -343,10 +343,9 @@ class GRegPrunerII(GRegPrunerI):
 
         count = 0
         pr_over_kp_weight_norm = {}
-        for idx, (name, module) in enumerate(self.model.named_modules()):
-            if not is_compute_layer(module):
-                continue
 
+        targets = {name: module for name, module in self.model.named_modules() if is_compute_layer(module)}
+        for layer_idx, (name, module) in enumerate(targets.items()):
             block_dims_candidate = self.valid_block_dims[name]
             block_sizes = np.array([v[0] * v[1] for v in block_dims_candidate if v != (1, 1)])
 
@@ -362,10 +361,7 @@ class GRegPrunerII(GRegPrunerI):
             else:
                 raise NotImplementedError
 
-            if count == 0 or name == 'classifier':
-                pr_ratio = 0
-            else:
-                pr_ratio = self.pr_ratio
+            pr_ratio = self._get_sparsity_ratio(name, module, layer_idx, block_dimension)
 
             target_layers[name] = GRegIIArgs(
                 layer=module,

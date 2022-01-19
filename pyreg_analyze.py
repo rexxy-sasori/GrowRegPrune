@@ -2,7 +2,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from datetime import datetime
 
-p = 'greg1_pruning_logs/log_min.txt'
+p = 'greg1_pruning_logs/log_unstructured.txt'
 
 layer_names = [
     'features.0',
@@ -72,11 +72,11 @@ for idx, layer_name in enumerate(layer_names):
     plot_data = pr_over_kp[idx::len(layer_names)]
     plt.plot(plot_data, label=layer_name)
 
-#plt.ylim([0, 0.05])
+plt.ylim([0, 5])
 plt.legend(ncol=3)
 plt.grid()
 plt.xlabel('Gradient Update Epoch')
-plt.ylabel('PrOverKp @ 90%')
+plt.ylabel('PKR @ 90%')
 plt.title(p)
 plt.show()
 
@@ -87,7 +87,6 @@ for idx, layer_name in enumerate(layer_names):
 
 plt.ylim([0, 0.05])
 plt.xlim([10000, 20000])
-plt.legend(ncol=3)
 plt.grid()
 plt.show()
 
@@ -96,6 +95,7 @@ plt.plot(train_accs, label='Train Acc')
 plt.plot(test_accs, label='Test Acc')
 plt.grid()
 plt.legend()
+plt.ylim([0.88, 1.01])
 plt.xlabel('Epoch')
 plt.ylabel('ACC')
 plt.title(p)
