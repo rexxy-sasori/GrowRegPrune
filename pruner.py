@@ -116,7 +116,9 @@ class GRegPrunerI:
 
             init_pr_over_kp_threshold=1,
             init_model_sparsity=0.5,
-            layer_sparsity_delta=0.1
+            layer_sparsity_delta=0.1,
+
+            sparsity_assignment='rf'
     ):
         self.logger = logger
 
@@ -153,10 +155,14 @@ class GRegPrunerI:
         self.init_model_sparsity = init_model_sparsity
         self.layer_sparsity_delta = layer_sparsity_delta
 
+        self.sparsity_assignment = sparsity_assignment
         self.target_layers, self.target_model_sparsity = self._register_layers()
 
     def _get_sparsity_ratio(self, name, module, block_dimension):
         self.logger.info(f'getting sparsity ratio by flooding {name}')
+
+        if self.sparsity_assignment == 'uniform':
+            return self.pr_ratio
 
         mask_func = MASK_FUNC_MAP[isinstance(module, nn.Conv2d)]
         pr_ratio = self.init_model_sparsity

@@ -32,7 +32,8 @@ def main_worker(
         reg_mode,
         init_pr_over_kp_threshold,
         init_model_sparsity,
-        layer_sparsity_delta
+        layer_sparsity_delta,
+        sparsity_assignment
 ):
     if not os.path.exists(log_directory):
         os.makedirs(log_directory)
@@ -79,25 +80,28 @@ def main_worker(
         block_size_mode=block_size_mode,
         init_pr_over_kp_threshold=init_pr_over_kp_threshold,
         init_model_sparsity=init_model_sparsity,
-        layer_sparsity_delta=layer_sparsity_delta
+        layer_sparsity_delta=layer_sparsity_delta,
+        sparsity_assignment=sparsity_assignment
     )
 
-    #os.system(f"echo {init_model_sparsity} {pruner.target_model_sparsity} {init_pr_over_kp_threshold} >> sparsity.txt")
-    #pruner.prune()
+    # os.system(f"echo {init_model_sparsity} {pruner.target_model_sparsity} {init_pr_over_kp_threshold} >> sparsity.txt")
+    # pruner.prune()
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--block-size-mode", type=str, required=True, help='choice={min, max, unstructured}')
     parser.add_argument("--reg-mode", type=int, required=True, help='choice={1,2}')
+    parser.add_argument("--sparsity-assignment", type=str, required=True, help='choice={uniform, rf}')
     args = parser.parse_args()
     block_size_mode = args.block_size_mode
     reg_mode = args.reg_mode
+    sparsity_assignment = args.sparsity_assignment
 
     block_candidate_path = 'valid_block_search_space/cifar_vgg19bn_sparsednn_tau_acc_20_tau_lat_1.5.pt'
     pretrained_model_path = 'model_checkpoint.pth'
 
-    log_directory = f'Experiments/greg{reg_mode}_pruning_logs_{datetime.now().strftime("%m%d%Y_%H%M%S")}'
+    log_directory = f'Experiments/greg{reg_mode}_logs_{block_size_mode}_{sparsity_assignment}_{datetime.now().strftime("%m%d%Y_%H%M%S")}'
 
     main_worker(
         batch_size=256,
@@ -110,5 +114,6 @@ if __name__ == '__main__':
         reg_mode=reg_mode,
         init_pr_over_kp_threshold=2,
         init_model_sparsity=0.95,
-        layer_sparsity_delta=0.0001
+        layer_sparsity_delta=0.0001,
+        sparsity_assignment=sparsity_assignment
     )

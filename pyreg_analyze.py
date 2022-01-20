@@ -4,7 +4,7 @@ from datetime import datetime
 from tqdm import tqdm
 
 
-p = 'greg1_pruning_logs/log_info_rf.log'
+p = 'greg1_pruning_logs/log_max.txt'
 
 layer_names = [
     'features.0',
