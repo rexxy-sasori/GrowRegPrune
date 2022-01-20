@@ -1,8 +1,10 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from datetime import datetime
+from tqdm import tqdm
 
-p = 'greg1_pruning_logs/log_unstructured.txt'
+
+p = 'greg1_pruning_logs/log_info_rf.log'
 
 layer_names = [
     'features.0',
@@ -42,29 +44,30 @@ with open(p, 'r') as f:
     train_acc_lines = [l for l in lines if train_acc_str in l]
     forward_pro_lines = [l for l in lines if forward_prop_str in l]
 
-    for idx, l in enumerate(layer_pr_over_kp):
+    for idx, l in tqdm(enumerate(layer_pr_over_kp)):
         end_idx = l.index('\n')
         start_idx = l.index('Pr/Kp')
         num = float(l[start_idx+6:end_idx])
         pr_over_kp.append(num)
 
-    for idx, l in enumerate(test_acc_lines):
+    for idx, l in tqdm(enumerate(test_acc_lines)):
         end_idx = l.index(', Iter')
         start_idx = l.index(test_acc_str)
         num = float(l[start_idx+12:end_idx])
         test_accs.append(num)
 
-    for idx, l in enumerate(train_acc_lines):
+    for idx, l in tqdm(enumerate(train_acc_lines)):
         end_idx = l.index(', Iter')
         start_idx = l.index(train_acc_str)
         num = float(l[start_idx+13:end_idx])
         train_accs.append(num)
 
-    for idx, l in enumerate(forward_pro_lines):
-        end_idx = l.index(']')
-        start_idx = l.index('[')
-        time_stamp_str = l[start_idx+6:end_idx]
-        timestamps.append(datetime.strptime(time_stamp_str, '%d %b %Y %H:%M:%S'))
+    # for idx, l in enumerate(forward_pro_lines):
+    #     end_idx = l.index(']')
+    #     start_idx = l.index('[')
+    #     time_stamp_str = l[start_idx+6:end_idx]
+    #     timestamps.append(datetime.strptime(time_stamp_str, '%d %b %Y %H:%M:%S'))
+
 pr_over_kp = np.array(pr_over_kp)
 
 plt.figure()
@@ -72,35 +75,37 @@ for idx, layer_name in enumerate(layer_names):
     plot_data = pr_over_kp[idx::len(layer_names)]
     plt.plot(plot_data, label=layer_name)
 
-plt.ylim([0, 5])
+plt.ylim([0, 2])
 plt.legend(ncol=3)
 plt.grid()
 plt.xlabel('Gradient Update Epoch')
 plt.ylabel('PKR @ 90%')
 plt.title(p)
-plt.show()
+#plt.show()
+plt.savefig(f"pkr_{p.split('_')[-1].replace('.txt', '')}.jpg")
 
 plt.figure()
 for idx, layer_name in enumerate(layer_names):
     plot_data = pr_over_kp[idx::len(layer_names)]
     plt.plot(plot_data, label=layer_name)
 
-plt.ylim([0, 0.05])
+plt.ylim([0, 0.005])
 plt.xlim([10000, 20000])
 plt.grid()
-plt.show()
+plt.savefig(f"pkr_zoom_{p.split('_')[-1].replace('.txt', '')}.jpg")
 
 plt.figure()
-plt.plot(train_accs, label='Train Acc')
-plt.plot(test_accs, label='Test Acc')
+time_epochs = 9999 * np.arange(len(train_accs))
+plt.plot(time_epochs, train_accs, label='Train Acc', marker='o')
+plt.plot(time_epochs, test_accs, label='Test Acc', marker='o')
 plt.grid()
 plt.legend()
 plt.ylim([0.88, 1.01])
 plt.xlabel('Epoch')
 plt.ylabel('ACC')
 plt.title(p)
-plt.show()
-
+#plt.show()
+plt.savefig(f"acc_{p.split('_')[-1].replace('.txt', '')}.jpg")
 
 # time_increments = [(j-i).total_seconds() for j,i in zip(timestamps[1::], timestamps[0:-1])]
 # plt.figure()

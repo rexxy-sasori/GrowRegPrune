@@ -24,13 +24,13 @@ data_block = parse_data(len(sps), num_layers, 'block')
 data_block_extra = parse_data(len(sps), num_layers, 'block_extra_factor')
 
 plt.figure()
-plt.plot(remain_percentage, data_unstructured.max(1), label='unstructured', marker='o')
-plt.plot(remain_percentage, data_block.max(1), label='block',  marker='o')
+plt.plot(100-remain_percentage, data_unstructured.max(1), label='unstructured', marker='o')
+plt.plot(100-remain_percentage, data_block.max(1), label='block',  marker='o')
 plt.legend()
 plt.grid()
-plt.xlabel('Remained Weight Percentage (%)')
-plt.ylabel('Max PrWeightNorm/KpWeightNorm')
-plt.show()
+plt.xlabel('Sparsity Level (%)')
+plt.ylabel('Max PKR')
+plt.savefig('max_pkr_over_sparsity_one_shot.jpg')
 
 
 plt.figure()
