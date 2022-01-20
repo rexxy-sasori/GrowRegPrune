@@ -113,7 +113,7 @@ if __name__ == '__main__':
         log_directory=log_directory,
         reg_mode=reg_mode,
         init_pr_over_kp_threshold=2,
-        init_model_sparsity=0.95,
+        init_model_sparsity=0.9,
         layer_sparsity_delta=0.0001,
         sparsity_assignment=sparsity_assignment
     )
