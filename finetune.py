@@ -7,7 +7,7 @@ from nnutils.training_pipeline import accuracy_evaluator
 from torch import nn
 
 
-def finetune(pruner, lr_ft, num_epochs, update_freq, logger, outout_dir):
+def finetune(pruner, lr_ft, num_epochs, update_freq, logger, output_dir):
     logger.info(f"Registering mask to reged model")
     for name, target in pruner.target_layers.items():
         setattr(target.layer, 'mask', target.kp_mask)
