@@ -56,6 +56,9 @@ class GRegIArgs:
     def finished_updating_reg_single_layer(self, reg_upper_limit) -> bool:
         return self.reg.max() > reg_upper_limit
 
+    def get_sparsity_ratio(self):
+        return self.pr_mask.sum().item() / self.pr_mask.numel()
+
 
 class GRegIIArgs(GRegIArgs):
     def __init__(self, picking_ceiling, weight_decay, *args, **kwargs):
@@ -152,11 +155,9 @@ class GRegPrunerI:
 
         self.target_layers, self.target_model_sparsity = self._register_layers()
 
-    def _get_sparsity_ratio(self, name, module, layer_idx, block_dimension):
-        self.logger.info(f'getting sparsity ratio by waterfilling for {name}')
-        # if 1 > 2:
-        #     return 0
-        # else:
+    def _get_sparsity_ratio(self, name, module, block_dimension):
+        self.logger.info(f'getting sparsity ratio by flooding {name}')
+
         mask_func = MASK_FUNC_MAP[isinstance(module, nn.Conv2d)]
         pr_ratio = self.init_model_sparsity
         pr_mask = 1 - mask_func(module.weight.data, block_dimension, pr_ratio)
@@ -175,7 +176,6 @@ class GRegPrunerI:
         Otherwise reduce the pr_ratio by sparsity_delta until pkr reaches given threshold
         """
         while pr_over_kp > self.init_pr_over_kp_threshold:
-            self.logger.info(f'{name}: current sparsity: {pr_ratio}, current PrOverKp: {pr_over_kp}')
             pr_ratio -= self.layer_sparsity_delta
             pr_mask = 1 - mask_func(module.weight.data, block_dimension, pr_ratio)
             kp_mask = 1 - pr_mask
@@ -195,22 +195,8 @@ class GRegPrunerI:
 
         targets = {name: module for name, module in self.model.named_modules() if is_compute_layer(module)}
         for layer_idx, (name, module) in enumerate(targets.items()):
-            block_dims_candidate = self.valid_block_dims[name]
-            block_sizes = np.array([v[0] * v[1] for v in block_dims_candidate if v != (1, 1)])
-
-            if self.block_size_mode == 'min':
-                self.logger.info("Select a non-unstructured candidate with the smallest block size")
-                block_dimension = block_dims_candidate[np.argmin(block_sizes)] if len(block_sizes) >= 1 else (1, 1)
-            elif self.block_size_mode == 'max':
-                self.logger.info("Select a non-unstructured candidate with the largest block size")
-                block_dimension = block_dims_candidate[np.argmax(block_sizes)] if len(block_sizes) >= 1 else (1, 1)
-            elif self.block_size_mode == 'unstructured':
-                self.logger.info("Set block dimension to be 1x1")
-                block_dimension = (1, 1)
-            else:
-                raise NotImplementedError
-
-            pr_ratio = self._get_sparsity_ratio(name, module, layer_idx, block_dimension)
+            block_dimension = self._get_block_dimension(module, name)
+            pr_ratio = self._get_sparsity_ratio(name, module, block_dimension)
 
             target_layers[name] = GRegIArgs(
                 layer=module,
@@ -222,19 +208,47 @@ class GRegPrunerI:
             kp_weight = target_layers[name].get_kp_weight_norm()
             pr_weight = target_layers[name].get_pr_weight_norm()
             pr_over_kp = pr_weight / kp_weight
+
+            actual_layer_sparsity = target_layers[name].get_sparsity_ratio()
             self.logger.info(f"Register layer name: {name}, "
                              f"shape: {module.weight.data.shape} "
-                             f"using pr ratio {pr_ratio} "
+                             f"using pr ratio {actual_layer_sparsity} "
                              f"block dims: {block_dimension} "
                              f"PrWeightNorm/KpWeightNorm={pr_over_kp}")
             pr_over_kp_weight_norm[name] = pr_over_kp
             count += 1
-            expected_model_sparsity += module.weight.data.numel() / self.total_param * pr_ratio
+            weight_proportion = module.weight.data.numel() / self.total_param
+            expected_model_sparsity += weight_proportion * actual_layer_sparsity
 
-        # torch.save(pr_over_kp_weight_norm, f'block_extra_factor/{self.pr_ratio}.pt')
         self.pr_over_kp_weight_norm_history.append(pr_over_kp_weight_norm)
         self.logger.info(f"Expected model sparsity: {expected_model_sparsity}")
         return target_layers, expected_model_sparsity
+
+    def _get_block_dimension(self, module, name):
+        block_dims_candidate = self.valid_block_dims[name]
+        block_sizes = np.array([v[0] * v[1] for v in block_dims_candidate if v != (1, 1)])
+        if self.block_size_mode == 'min':
+            self.logger.info("Select a non-unstructured candidate with the smallest block size")
+            block_dimension = block_dims_candidate[np.argmin(block_sizes)] if len(block_sizes) >= 1 else (1, 1)
+        elif self.block_size_mode == 'max':
+            self.logger.info("Select a non-unstructured candidate with the largest block size")
+            block_dimension = block_dims_candidate[np.argmax(block_sizes)] if len(block_sizes) >= 1 else (1, 1)
+        elif self.block_size_mode == 'unstructured':
+            self.logger.info("Set block dimension to be 1x1")
+            block_dimension = (1, 1)
+        elif self.block_size_mode == 'regular':
+            if isinstance(module, nn.Linear):
+                num_row, num_col = module.weight.data.shape
+                block_dimension = (num_row, 1)
+            else:
+                cout, cin, hk, wk = module.weight.data.shape
+                if cout > cin:
+                    block_dimension = (cout, hk * wk)
+                else:
+                    block_dimension = (1, cin * hk * wk)
+        else:
+            raise NotImplementedError
+        return block_dimension
 
     def prune(self) -> nn.Module:
         self.model = self.model.train()
