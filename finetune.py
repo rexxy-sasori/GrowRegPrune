@@ -9,8 +9,7 @@ from torch import nn
 
 def finetune(pruner, lr_ft, num_epochs, update_freq, logger, output_dir):
     logger.info(f"Registering mask to reged model")
-    for name, target in pruner.target_layers.items():
-        setattr(target.layer, 'mask', target.kp_mask)
+    register_mask(pruner)
 
     sparse_model = deepcopy(pruner.model)
     logger.info(f"Finishing loading reged model")
@@ -20,14 +19,22 @@ def finetune(pruner, lr_ft, num_epochs, update_freq, logger, output_dir):
     criterion = pruner.criterion
     optimizer = pruner.optimizer
     lr_scheduler = PresetLRScheduler(lr_ft)
+    logger = pruner.logger
+    device = pruner.device
 
+    tune_model(criterion, device, logger, lr_scheduler, num_epochs, optimizer, output_dir, sparse_model, testloader,
+               trainloader, update_freq)
+
+
+def tune_model(criterion, device, logger, lr_scheduler, num_epochs, optimizer, output_dir, sparse_model, testloader,
+               trainloader, update_freq):
     best_acc = 0
     for epoch in range(num_epochs):
         lr = lr_scheduler(optimizer, epoch)
-        pruner.logger.info("==> Set lr = %s @ Epoch %d " % (lr, epoch))
-        train(trainloader, sparse_model, criterion, optimizer, epoch, pruner.logger, pruner.device, update_freq)
-        acc, loss = accuracy_evaluator.eval(sparse_model, pruner.device, testloader, criterion, print_acc=False)
-        pruner.logger.info(f"TEST ACC {acc} at Iter {epoch}")
+        logger.info("==> Set lr = %s @ Epoch %d " % (lr, epoch))
+        train(trainloader, sparse_model, criterion, optimizer, epoch, logger, device, update_freq)
+        acc, loss = accuracy_evaluator.eval(sparse_model, device, testloader, criterion, print_acc=False)
+        logger.info(f"TEST ACC {acc} at Iter {epoch}")
 
         if acc > best_acc:
             torch.save(
@@ -39,6 +46,12 @@ def finetune(pruner, lr_ft, num_epochs, update_freq, logger, output_dir):
                 },
                 os.path.join(output_dir, 'finetune_ckpt.pt')
             )
+            best_acc = acc
+
+
+def register_mask(pruner):
+    for name, target in pruner.target_layers.items():
+        setattr(target.layer, 'mask', target.kp_mask)
 
 
 def train(train_loader, model, criterion, optimizer, epoch, logger, device, update_freq):

@@ -6,7 +6,7 @@ import torch
 
 import dataset
 from logger import get_logger
-from pruner import GRegPrunerI
+from pruner import GRegPrunerI, GraspPruner
 from vgg import vgg19
 
 
@@ -41,11 +41,6 @@ def main_worker(
     logger = get_logger(log_directory, clear_prev_log)
 
     device = 'cpu' if not torch.cuda.is_available() else 'cuda'
-    ckpt = torch.load(pretrained_model_path, map_location=device)
-
-    model = vgg19()
-    model.load_state_dict(rm_parallel_module_name(ckpt))
-
     trainset, testset = dataset.get_dataset()
     trainloader, testloader = dataset.get_dataloader(
         trainset=trainset,
@@ -55,36 +50,52 @@ def main_worker(
         drop_last_batch=False
     )
 
-    logger.info(f"Start regularization pruning")
+    model = vgg19()
     if reg_mode == 1:
-        reg_class = GRegPrunerI
+        logger.info(f"Start regularization pruning")
+        ckpt = torch.load(pretrained_model_path, map_location=device)
+        model.load_state_dict(rm_parallel_module_name(ckpt))
+        pruner = GRegPrunerI(
+            model=model,
+            device=device,
+            trainloader=trainloader,
+            testloader=testloader,
+            lr_prune=0.001,
+            momentum=0.9,
+            weight_decay=0.0005,
+            valid_block_pruning_path=block_candidate_path,
+            pr_ratio=0.9,
+            reg_ceiling=1,
+            update_reg_interval=10,
+            epsilon_lambda=0.0001,
+            logger=logger,
+            log_directory=log_directory,
+            save_interval=9999,
+            block_size_mode=block_size_mode,
+            init_pr_over_kp_threshold=init_pr_over_kp_threshold,
+            init_model_sparsity=init_model_sparsity,
+            layer_sparsity_delta=layer_sparsity_delta,
+            sparsity_assignment=sparsity_assignment
+        )
+    elif reg_mode == 3:
+        logger.info(f"Start block grasp pruning")
+        pruner = GraspPruner(
+            model=model,
+            global_ratio=0.97,
+            trainloader=trainloader,
+            testloader=testloader,
+            device=device,
+            lr_prune=0.01,
+            momentum=0.9,
+            weight_decay=0.0005,
+            valid_block_pruning_path=block_candidate_path,
+            block_size_mode=block_size_mode,
+            logger=logger,
+            log_directory=log_directory
+        )
     else:
         raise NotImplementedError
 
-    pruner = reg_class(
-        model=model,
-        device=device,
-        trainloader=trainloader,
-        testloader=testloader,
-        lr_prune=0.001,
-        momentum=0.9,
-        weight_decay=0.0005,
-        valid_block_pruning_path=block_candidate_path,
-        pr_ratio=0.9,
-        reg_ceiling=1,
-        update_reg_interval=10,
-        epsilon_lambda=0.0001,
-        logger=logger,
-        log_directory=log_directory,
-        save_interval=9999,
-        block_size_mode=block_size_mode,
-        init_pr_over_kp_threshold=init_pr_over_kp_threshold,
-        init_model_sparsity=init_model_sparsity,
-        layer_sparsity_delta=layer_sparsity_delta,
-        sparsity_assignment=sparsity_assignment
-    )
-
-    # os.system(f"echo {init_model_sparsity} {pruner.target_model_sparsity} {init_pr_over_kp_threshold} >> sparsity.txt")
     pruner.prune()
 
 
