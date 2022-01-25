@@ -7,6 +7,7 @@ import torch
 import dataset
 from logger import get_logger
 from pruner import GRegPrunerI, GraspPruner
+from resnet import resnet56
 from vgg import vgg19
 
 
@@ -22,6 +23,7 @@ def rm_parallel_module_name(state_dict):
 
 
 def main_worker(
+        arch,
         batch_size,
         num_worker,
         pretrained_model_path,
@@ -50,7 +52,13 @@ def main_worker(
         drop_last_batch=False
     )
 
-    model = vgg19()
+    if arch == 'vgg19':
+        model = vgg19()
+    elif arch == 'resnet56':
+        model = resnet56()
+    else:
+        raise NotImplementedError
+
     if reg_mode == 1:
         logger.info(f"Start regularization pruning")
         ckpt = torch.load(pretrained_model_path, map_location=device)
@@ -96,7 +104,7 @@ def main_worker(
     else:
         raise NotImplementedError
 
-    #pruner.prune()
+    pruner.prune()
 
 
 if __name__ == '__main__':
@@ -104,6 +112,7 @@ if __name__ == '__main__':
     parser.add_argument("--block-size-mode", type=str, required=True, help='choice={min, max, unstructured}')
     parser.add_argument("--reg-mode", type=int, required=True, help='choice={1,2}')
     parser.add_argument("--sparsity-assignment", type=str, required=True, help='choice={uniform, rf}')
+    parser.add_argument("--arch", type=str, required=True, help='choice={vgg19, resnet56}')
     args = parser.parse_args()
     block_size_mode = args.block_size_mode
     reg_mode = args.reg_mode
@@ -126,5 +135,6 @@ if __name__ == '__main__':
         init_pr_over_kp_threshold=2,
         init_model_sparsity=0.9,
         layer_sparsity_delta=0.0001,
-        sparsity_assignment=sparsity_assignment
+        sparsity_assignment=sparsity_assignment,
+        arch=args.arch
     )
