@@ -81,7 +81,7 @@ def main_worker(
         logger.info(f"Start block grasp pruning")
         pruner = GraspPruner(
             model=model,
-            global_ratio=0.97,
+            global_ratio=0.75,
             trainloader=trainloader,
             testloader=testloader,
             device=device,
@@ -96,7 +96,7 @@ def main_worker(
     else:
         raise NotImplementedError
 
-    pruner.prune()
+    #pruner.prune()
 
 
 if __name__ == '__main__':
